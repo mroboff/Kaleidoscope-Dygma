@@ -28,6 +28,7 @@
 #include "SuperkeysHandler.h"
 
 #include "KeyRoleManager.h"
+#include "kaleidoscope/plugin/KeyTimingDygma.h"
 
 
 namespace kaleidoscope {
@@ -143,7 +144,7 @@ EventHandlerResult Qukeys::beforeReportingState() {
   // If we get here, that means that the first event in the queue is a qukey
   // press. All that's left to do is to check if it's been held long enough that
   // it has timed out.
-  if (Runtime.hasTimeExpired(event_queue_.timestamp(0), hold_timeout_)) {
+  if (Runtime.hasTimeExpired(event_queue_.timestamp(0), head_timing_.hold_timeout)) {
     // If it's a SpaceCadet-type key, it takes on its primary value, otherwise
     // it takes on its secondary value.
     Key event_key = isModifierKey(queue_head_.primary_key) ?
@@ -204,7 +205,7 @@ bool Qukeys::processQueue() {
   // If the qukey press is followed a printable key too closely, it's not
   // eligible to take on its alternate value unless it's a SpaceCadet-type key.
   if (!Runtime.hasTimeExpired(prior_keypress_timestamp_,
-                              minimum_prior_interval_) &&
+                              head_timing_.minimum_prior_interval) &&
       !qukey_is_spacecadet) {
     flushEvent(queue_head_.primary_key);
   }
@@ -237,7 +238,7 @@ bool Qukeys::processQueue() {
       // SpaceCadet key, or if no rollover compensation is being used, we can
       // flush it now. Its state depends on whether or not it's a
       // SpaceCadet-type key.
-      if (next_keypress_index == 0 || overlap_threshold_ == 0) {
+      if (next_keypress_index == 0 || head_timing_.overlap_threshold == 0) {
         Key event_key = qukey_is_spacecadet ?
                         queue_head_.alternate_key : queue_head_.primary_key;
         flushEvent(event_key);
@@ -275,7 +276,7 @@ bool Qukeys::processQueue() {
         // to make it eligible for its alternate value. This helps faster
         // typists avoid unintended modifiers in the output.
         if (Runtime.hasTimeExpired(event_queue_.timestamp(0),
-                                   minimum_hold_time_)) {
+                                   head_timing_.minimum_hold_time)) {
           flushEvent(queue_head_.alternate_key);
           return true;
         }
@@ -338,6 +339,7 @@ bool Qukeys::isQukey(KeyAddr k) {
 
   // Next, we check to see if this is a DualUse-type qukey (defined in the keymap)
   if (isDualUseKey(key)) {
+    loadHeadTiming(k);
     return true;
   }
 
@@ -350,6 +352,7 @@ bool Qukeys::isQukey(KeyAddr k) {
           (qukey.layer == layer_wildcard)) {
         queue_head_.primary_key = key;
         queue_head_.alternate_key = qukey.alternate_key;
+        loadHeadTiming(k);
         return true;
       }
     }
@@ -359,6 +362,22 @@ bool Qukeys::isQukey(KeyAddr k) {
   queue_head_.primary_key = key;
   queue_head_.alternate_key = Key_Transparent;
   return false;
+}
+
+// The timing for the qukey at `k`: the keyboard's values, overridden by the
+// key's own entry in the per-key timing table, if it has one.
+void Qukeys::loadHeadTiming(KeyAddr k) {
+  head_timing_.hold_timeout = hold_timeout_;
+  head_timing_.overlap_threshold = overlap_threshold_;
+  head_timing_.minimum_hold_time = minimum_hold_time_;
+  head_timing_.minimum_prior_interval = minimum_prior_interval_;
+  KeyTiming::QukeyTiming timing{hold_timeout_, overlap_threshold_, minimum_hold_time_, minimum_prior_interval_};
+  if (KeyTiming::qukey_timing(k, Layer.lookupActiveLayer(k), timing)) {
+    head_timing_.hold_timeout = timing.hold_timeout;
+    head_timing_.overlap_threshold = timing.overlap_threshold;
+    head_timing_.minimum_hold_time = timing.minimum_hold_time;
+    head_timing_.minimum_prior_interval = timing.minimum_prior_interval;
+  }
 }
 
 // Specific test for DualUse keys (in-keymap qukeys); this is a separate
@@ -477,7 +496,7 @@ bool Qukeys::releaseDelayed(uint16_t overlap_start,
   // divide by the percentage value (as an integer). We use 32-bit integers
   // here to make sure it doesn't overflow when we multiply by 100.
   uint32_t overlap_duration = overlap_end - overlap_start;
-  uint32_t release_timeout = (overlap_duration * 100) / overlap_threshold_;
+  uint32_t release_timeout = (overlap_duration * 100) / head_timing_.overlap_threshold;
   return !Runtime.hasTimeExpired(overlap_start, uint16_t(release_timeout));
 }
 

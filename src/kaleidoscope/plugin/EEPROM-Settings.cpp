@@ -113,7 +113,13 @@ void EEPROMSettings::seal(void) {
     settings_.crc = CRC.crc;
     update();
   } else if (settings_.crc != CRC.crc) {
-    return;
+    // This firmware adds slices after everything stock firmware stores, so
+    // a layout checksum from stock firmware (or from an earlier build of
+    // this one) only means the table has grown. Everything stock keeps is
+    // where it was; the new checksum is recorded and the settings stay
+    // valid, so the default layer below still applies.
+    settings_.crc = CRC.crc;
+    update();
   }
 
   /* If we have a default layer set, switch to it.

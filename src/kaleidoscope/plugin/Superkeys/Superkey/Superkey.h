@@ -90,6 +90,12 @@ private:
 
   uint8_t index_{};
   const Utils::SharedConfig* shared_config_{nullptr}; // Pointer to shared configuration (4 bytes instead of 6)
+  // The timing this key is decided with: the shared configuration, or a copy
+  // of it with the key's own values from the per-key timing table.
+  Utils::SharedConfig own_config_{};
+  const Utils::SharedConfig* active_config_{nullptr};
+  const Utils::SharedConfig* timing() const { return active_config_ ? active_config_ : shared_config_; }
+  void load_timing();
   const Key* actions_{nullptr}; // Pointer to actions array (stored separately to save memory)
 
   // Superkey States

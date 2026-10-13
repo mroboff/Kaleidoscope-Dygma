@@ -165,6 +165,12 @@ class Qukeys : public kaleidoscope::Plugin {
   // A wildcard value for a qukey that exists on every layer.
   static constexpr int8_t layer_wildcard{-1};
 
+  // The keyboard's values, which a key without its own timing uses.
+  uint16_t hold_timeout() const { return hold_timeout_; }
+  uint8_t overlap_threshold() const { return overlap_threshold_; }
+  uint8_t minimum_hold_time() const { return minimum_hold_time_; }
+  uint8_t minimum_prior_interval() const { return minimum_prior_interval_; }
+
   // Kaleidoscope hook functions.
   EventHandlerResult onKeyswitchEvent(Key &mapped_key,
                                       KeyAddr key_addr,
@@ -231,6 +237,16 @@ class Qukeys : public kaleidoscope::Plugin {
     Key primary_key{Key_Transparent};
     Key alternate_key{Key_Transparent};
   } queue_head_;
+
+  // The timing the qukey at the head of the queue is decided with: the
+  // keyboard's values, or the key's own from the per-key timing table.
+  struct {
+    uint16_t hold_timeout{250};
+    uint8_t overlap_threshold{80};
+    uint8_t minimum_hold_time{50};
+    uint8_t minimum_prior_interval{75};
+  } head_timing_;
+  void loadHeadTiming(KeyAddr k);
 
   // Internal helper methods.
   bool processQueue();

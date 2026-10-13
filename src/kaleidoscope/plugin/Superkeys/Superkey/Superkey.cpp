@@ -14,6 +14,8 @@
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Superkey.h"
+#include "kaleidoscope/plugin/KeyTimingDygma.h"
+#include "kaleidoscope/layers.h"
 
 
 Superkey::Superkey()
@@ -116,7 +118,7 @@ void Superkey::run()
         
         // Check timeout for both pressed and released states
         // This allows detecting multiple taps after release
-        if (shared_config_ && kaleidoscope::Runtime_::hasTimeExpired(superKeyState.timeStamp, shared_config_->time_out_))
+        if (timing() && kaleidoscope::Runtime_::hasTimeExpired(superKeyState.timeStamp, timing()->time_out_))
         {
             timeout();
             disable();
@@ -127,7 +129,24 @@ void Superkey::run()
 /************SUPERKEY STATES*************/
 void Superkey::key_pressed()
 {
+    load_timing();
     tap();
+}
+
+// The shared timing, or the key's own where the timing table has it. Read
+// once per press, from the key's address and the layer it was looked up on.
+void Superkey::load_timing()
+{
+    active_config_ = shared_config_;
+    if (shared_config_ == nullptr || !keyaddr_.isValid())
+    {
+        return;
+    }
+    own_config_ = *shared_config_;
+    if (kaleidoscope::plugin::KeyTiming::superkey_timing(keyaddr_, Layer.lookupActiveLayer(keyaddr_), own_config_))
+    {
+        active_config_ = &own_config_;
+    }
 }
 
 void Superkey::key_released()
@@ -167,7 +186,7 @@ void Superkey::key_released()
 
 void Superkey::key_is_pressed()
 {
-    if (shared_config_ && kaleidoscope::Runtime_::hasTimeExpired(superKeyState.hold_start, shared_config_->hold_start_))
+    if (timing() && kaleidoscope::Runtime_::hasTimeExpired(superKeyState.hold_start, timing()->hold_start_))
     {
         hold();
     }
